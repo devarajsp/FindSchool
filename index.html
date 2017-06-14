@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Geolocation</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #floating-panel {
+        position: absolute;
+        top: 10px;
+        left: 25%;
+        z-index: 5;
+        background-color: #fff;
+        padding: 5px;
+        border: 1px solid #999;
+        text-align: center;
+        font-family: 'Roboto','sans-serif';
+        line-height: 30px;
+        padding-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+ <div id="floating-panel">
+      <!-- <input onclick="clearMarkers();" type=button value="Hide Schools"> -->
+      <input onclick="readyToSelectNewLocation();" type=button value="Set New Location">
+      <input onclick="setGPSLocation();" type=button value="Set GPS Location">
+    </div>
+    <div id="map"></div>
+    <script>
+      // Note: This example requires that you consent to location sharing when
+      // prompted by your browser. If you see the error "The Geolocation service
+      // failed.", it means you probably did not give permission for the browser to
+      // locate you.
+      var map, infoWindow, mypos;
+      var markers = [];
+	  var radiusInMeters = 5000;
+	  var readyToSelectLocation = false;
+	  
+      function initMap() 
+	  {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: {lat: -34.397, lng: 150.644},
+          zoom: 15
+        });
+
+		map.addListener('click', function(e) {
+			if ( readyToSelectLocation == true )
+			{
+				readyToSelectLocation = false;
+				setLocation(e.latLng);
+			}
+		});
+
+        infoWindow = new google.maps.InfoWindow;
+		setGPSLocation();
+      }
+	  
+	  function readyToSelectNewLocation()
+	  {
+		deleteMarkers();
+		readyToSelectLocation = true;
+	  }
+
+      function setGPSLocation()
+      {
+		deleteMarkers();
+        // Try HTML5 geolocation.
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var pos = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+
+            mypos = pos;
+
+            infoWindow.setPosition(pos);
+            infoWindow.setContent('You are here.');
+            infoWindow.open(map);
+            map.setCenter(pos);
+			searchSchools(radiusInMeters);
+
+          }, function() {
+            handleLocationError(true, infoWindow, map.getCenter());
+          });
+        } else {
+          // Browser doesn't support Geolocation
+          handleLocationError(false, infoWindow, map.getCenter());
+        }
+      }
+
+
+      function setLocation(currLoc)
+      {
+			deleteMarkers();
+			
+            var pos1 = {
+              lat: currLoc.lat(),
+              lng: currLoc.lng()
+            };
+            mypos = pos1;
+
+            infoWindow.setPosition(currLoc);
+            infoWindow.setContent('You are here.');
+            infoWindow.open(map);
+           // map.setCenter(currLoc);
+		
+			searchSchools(radiusInMeters);
+      }
+
+	function searchSchools(radius){
+			var service = new google.maps.places.PlacesService(map);
+		        service.nearbySearch({
+		          location: mypos,
+		          radius: radius,
+		          type: ['school']
+		        }, schoolsearchcallback);
+	}
+
+	function schoolsearchcallback(results, status) {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          for (var i = 0; i < results.length; i++) {
+            createMarker(results[i]);
+          }
+        }
+     }
+
+      function setMapOnAll(map) {
+        for (var i = 0; i < markers.length; i++) {
+          markers[i].setMap(map);
+        }
+      }
+ // Removes the markers from the map, but keeps them in the array.
+      function clearMarkers() {
+        setMapOnAll(null);
+      }
+
+      // Shows any markers currently in the array.
+      function showMarkers() {
+        setMapOnAll(map);
+      }
+
+      // Deletes all markers in the array by removing references to them.
+      function deleteMarkers() {
+        clearMarkers();
+        markers = [];
+      }
+
+
+      function createMarker(place) {
+        var placeLoc = place.geometry.location;
+            var p2 = {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng()
+            };
+
+		var dis = getDistance(mypos,p2 );
+            dis = Math.round(dis);
+
+		var image = 'https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png';
+
+
+		var mark;
+        if ( dis < 100 ) {
+            mark = new google.maps.Marker({
+          position: place.geometry.location,
+          map: map,
+          icon: image
+        });
+         }
+		else{
+	    mark = new google.maps.Marker({
+          map: map,
+          position: place.geometry.location
+        });
+		}
+
+		markers.push(mark);
+        google.maps.event.addListener(mark, 'click', function() {
+               
+ 		alert(place.name + "distance: "+dis +" meters");
+          infowindow.setContent(place.name);
+          infowindow.open(map, this);
+        });
+      }
+
+	  function handleLocationError(browserHasGeolocation, infoWindow, pos) {
+		infoWindow.setPosition(pos);
+		infoWindow.setContent(browserHasGeolocation ?
+							  'Error: The Geolocation service failed.' :
+							  'Error: Your browser doesn\'t support geolocation.');
+		infoWindow.open(map);
+	  }
+
+		var rad = function(x) {
+		  return x * Math.PI / 180;
+		};
+
+		var getDistance = function(p1, p2) {
+
+		  // alert("details : "+ p1.lat + ' - ' + p1.lng + ' - ' + p2.lat + ' - ' + p2.lng );
+		  var R = 6378137; // Earth’s mean radius in meter
+		  var dLat = rad(p2.lat - p1.lat);
+		  var dLong = rad(p2.lng - p1.lng);
+		  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+			Math.cos(rad(p1.lat)) * Math.cos(rad(p2.lat)) *
+			Math.sin(dLong / 2) * Math.sin(dLong / 2);
+		  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		  var d = R * c;
+		  return d; // returns the distance in meter
+		};
+
+    </script>
+    <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDZ0j3-tInlhGVHGpTEbOxaunW00Tp_mes&libraries=places&callback=initMap"  async defer>
+    </script>
+  </body>
+</html>
